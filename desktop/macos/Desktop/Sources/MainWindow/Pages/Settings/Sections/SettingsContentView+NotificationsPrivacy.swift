@@ -205,6 +205,10 @@ extension SettingsContentView {
         }
       }
 
+      settingsCard(settingId: "notifications.wakecall") {
+        WakeCallDemoSettingsCard(controller: wakeCallDemoController)
+      }
+
     }
     // These three toggles are seeded from their local singletons when the pane is constructed,
     // but `loadBackendSettings()` then runs `SettingsSyncManager.syncFromServer()`, which is

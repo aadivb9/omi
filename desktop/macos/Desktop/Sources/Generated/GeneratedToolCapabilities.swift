@@ -469,6 +469,21 @@ enum GeneratedToolCapabilities {
     ]
     ),
     Capability(
+      toolName: "set_alarm",
+      title: "Set Alarm",
+      latency: .fastLocal,
+      surfaces: Set([.desktopChat, .realtimeHub]),
+      summary: "Set a local alarm on this Mac.",
+      bullets: [
+      "Use for explicit alarm and timer requests, including short timers such as ‘in 30 seconds’.",
+      "Use seconds_from_now for relative times. Use scheduled_at only for a specific ISO-8601 date and time.",
+      "Confirm the exact local alarm time after the tool returns.",
+      "Use this directly for every explicit alarm and timer request; never spawn an agent or create_action_item for an alarm.",
+      "For relative times, pass seconds_from_now. For a specific date and time, pass scheduled_at as ISO-8601.",
+      "After it succeeds, confirm the exact local alarm time."
+    ]
+    ),
+    Capability(
       toolName: "update_action_item",
       title: "Update Action Item",
       latency: .fastNetwork,
@@ -683,6 +698,6 @@ enum GeneratedToolCapabilities {
   }
 
   static var realtimeToolNames: [String] {
-    ["ask_higher_model","cancel_agent_run","check_permission_status","create_action_item","create_calendar_event","get_action_items","get_agent_run","get_conversations","get_daily_recap","get_memories","get_tasks","inspect_agent_artifacts","list_agent_sessions","point_click","report_screen_observation","request_permission","screenshot","search_conversations","search_memories","search_screen_history","set_desktop_attention_override","spawn_agent","update_action_item","update_agent_artifact_lifecycle"]
+    ["ask_higher_model","cancel_agent_run","check_permission_status","create_action_item","create_calendar_event","get_action_items","get_agent_run","get_conversations","get_daily_recap","get_memories","get_tasks","inspect_agent_artifacts","list_agent_sessions","point_click","report_screen_observation","request_permission","screenshot","search_conversations","search_memories","search_screen_history","set_alarm","set_desktop_attention_override","spawn_agent","update_action_item","update_agent_artifact_lifecycle"]
   }
 }

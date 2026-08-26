@@ -277,6 +277,7 @@ struct SettingsContentView: View {
   // Start from the synchronous persisted mirror so reopening Settings never flashes
   // Balanced while the authoritative backend value is still hydrating.
   @State var notificationFrequency: Int = NotificationService.currentFrequencyLevel()
+  @StateObject var wakeCallDemoController = WakeCallDemoController()
 
   // Privacy settings (from backend)
   @State var recordingPermissionEnabled: Bool = false

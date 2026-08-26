@@ -17,6 +17,7 @@ enum HubTool: String {
   case searchMemories = "search_memories"
   case getActionItems = "get_action_items"
   case createActionItem = "create_action_item"
+  case setAlarm = "set_alarm"
   case updateActionItem = "update_action_item"
   case checkPermissionStatus = "check_permission_status"
   case requestPermission = "request_permission"
@@ -481,6 +482,29 @@ enum GeneratedRealtimeTools {
       "required": [
         "description"
       ]
+    }
+  },
+  {
+    "type": "function",
+    "name": "set_alarm",
+    "description": "Set a local Mac alarm or timer immediately. Use this directly for every explicit alarm or timer request, including short requests such as ‘in 5 seconds’; never spawn an agent for an alarm. Pass seconds_from_now for relative times or scheduled_at for a specific ISO-8601 time. Confirm the exact alarm time after it succeeds.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Short label for the alarm."
+        },
+        "seconds_from_now": {
+          "type": "number",
+          "description": "Delay in seconds for a relative timer."
+        },
+        "scheduled_at": {
+          "type": "string",
+          "description": "Specific ISO-8601 local alarm time."
+        }
+      },
+      "required": []
     }
   },
   {

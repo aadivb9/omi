@@ -17,6 +17,7 @@ enum GeneratedSwiftTool: String, CaseIterable {
   case createMemory = "create_memory"
   case getActionItems = "get_action_items"
   case createActionItem = "create_action_item"
+  case setAlarm = "set_alarm"
   case updateActionItem = "update_action_item"
   case captureScreen = "capture_screen"
   case checkPermissionStatus = "check_permission_status"
@@ -46,8 +47,8 @@ enum GeneratedSwiftToolExecutor: String {
 
 enum GeneratedToolExecutors {
   static let manifestVersion = 1
-  static let manifestDigest = "sha256:c1bee79f74def1a256bd4d00d7918c658dcb5043b21e21ccd80b0cb7e96dee17"
-  static let chatFirstManifestDigest = "sha256:3805f67fad145b38bee5a4f139fee7f5974fc65cb557b626455a9db8219f92c1"
+  static let manifestDigest = "sha256:370d4dabde8bb67b3987d3923de7b25db1f00b5806cde982ef3f3f7d228f17e4"
+  static let chatFirstManifestDigest = "sha256:17fb3a7ef810d7a0fabba8a8c3e58c7665624ccb7a08bf56cd968d5313b6c747"
 
   static let aliasToCanonical: [String: GeneratedSwiftTool] = [
     "search_screen_history": .semanticSearch,
@@ -71,6 +72,7 @@ enum GeneratedToolExecutors {
     .createMemory: .chatToolExecutor,
     .getActionItems: .chatToolExecutor,
     .createActionItem: .chatToolExecutor,
+    .setAlarm: .chatToolExecutor,
     .updateActionItem: .chatToolExecutor,
     .captureScreen: .chatToolExecutor,
     .checkPermissionStatus: .chatToolExecutor,
@@ -137,6 +139,7 @@ enum GeneratedToolExecutors {
     case createMemory
     case getActionItems
     case createActionItem
+    case setAlarm
     case updateActionItem
     case captureScreen
     case checkPermissionStatus
@@ -175,6 +178,7 @@ enum GeneratedToolExecutors {
     case .createMemory: return .createMemory
     case .getActionItems: return .getActionItems
     case .createActionItem: return .createActionItem
+    case .setAlarm: return .setAlarm
     case .updateActionItem: return .updateActionItem
     case .captureScreen: return .captureScreen
     case .checkPermissionStatus: return .checkPermissionStatus

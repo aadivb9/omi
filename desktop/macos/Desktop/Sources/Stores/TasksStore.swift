@@ -512,6 +512,7 @@ class TasksStore: ObservableObject {
       if overdueTasks != sortedOverdue { overdueTasks = sortedOverdue }
       if todaysTasks != sortedToday { todaysTasks = sortedToday }
       if tasksWithoutDueDate != sortedNoDueDate { tasksWithoutDueDate = sortedNoDueDate }
+      LocalAlarmScheduler.shared.scheduleImportantTasks(sortedToday)
       log(
         "TasksStore: Dashboard loaded from SQLite - overdue: \(snapshot.overdue.count), today: \(snapshot.today.count), noDeadline: \(snapshot.noDueDate.count)"
       )

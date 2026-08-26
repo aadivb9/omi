@@ -451,6 +451,22 @@ const swiftToolSurfacePatches: Record<string, OmiToolSurfacePatch> = {
         "Create a new task / to-do / reminder for the user ('remind me to…', 'add … to my list', 'I need to…'). Fast synchronous write. Confirm out loud after it returns.",
     },
   },
+  set_alarm: {
+    surfaces: ["desktop_chat", "realtime_voice"],
+    capabilityDoc: doc(
+      "Set Alarm",
+      "Set a local alarm on this Mac.",
+      [
+        "Use for explicit alarm and timer requests, including short timers such as ‘in 30 seconds’.",
+        "Use seconds_from_now for relative times. Use scheduled_at only for a specific ISO-8601 date and time.",
+        "Confirm the exact local alarm time after the tool returns.",
+      ],
+    ),
+    voice: {
+      realtimeDescription:
+        "Set a local Mac alarm or timer immediately. Use this directly for every explicit alarm or timer request, including short requests such as ‘in 5 seconds’; never spawn an agent for an alarm. Pass seconds_from_now for relative times or scheduled_at for a specific ISO-8601 time. Confirm the exact alarm time after it succeeds.",
+    },
+  },
   update_action_item: {
     surfaces: ["desktop_chat", "realtime_voice"],
     capabilityDoc: doc(
@@ -1098,6 +1114,29 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     executor: { kind: "swiftTool" },
     intendedForAgents: true,
     runtimePreconditions: ["Requires authenticated backend access."],
+    adapters: piAndStdio(),
+  },
+  {
+    name: "set_alarm",
+    label: "Set Alarm",
+    description: "Set a local alarm or timer on this Mac.",
+    promptSnippet: "set_alarm - Set a local Mac alarm or timer",
+    promptGuidelines: [
+      "Use this directly for every explicit alarm and timer request; never spawn an agent or create_action_item for an alarm.",
+      "For relative times, pass seconds_from_now. For a specific date and time, pass scheduled_at as ISO-8601.",
+      "After it succeeds, confirm the exact local alarm time.",
+    ],
+    latency: "fast local",
+    inputSchema: schema({
+      title: { type: "string", description: "Short label for the alarm." },
+      seconds_from_now: { type: "number", description: "Delay in seconds for a relative timer." },
+      scheduled_at: { type: "string", description: "Specific ISO-8601 local alarm time." },
+    }),
+    annotations: localWrite,
+    timeoutClass: "normal",
+    executor: { kind: "swiftTool" },
+    intendedForAgents: true,
+    runtimePreconditions: ["Schedules an alarm on the current Mac."],
     adapters: piAndStdio(),
   },
   {

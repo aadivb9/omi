@@ -511,6 +511,9 @@ extension RealtimeHubController {
       return .failed(Self.authorizedRealtimeToolError(code: "unsupported_realtime_tool"))
     }
     switch tool {
+    case .setAlarm:
+      return .succeeded(ChatToolExecutor.executeSetAlarm(command.input))
+
     case .getTasks:
       await TasksStore.shared.loadDashboardTasks(expectedOwnerID: command.ownerID)
       guard AuthorizedToolExecution.isOwnerCurrent(command.ownerID) else {

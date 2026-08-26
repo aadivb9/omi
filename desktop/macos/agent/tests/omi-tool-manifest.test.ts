@@ -106,6 +106,7 @@ describe("omi tool manifest", () => {
       "search_memories",
       "get_action_items",
       "create_action_item",
+      "set_alarm",
       "update_action_item",
       "capture_screen",
       "check_permission_status",
@@ -121,6 +122,15 @@ describe("omi tool manifest", () => {
 
     expect(screenshot?.surfaces).toEqual(["realtime_voice"]);
     expect(screenshot?.executor).toEqual({ kind: "swiftTool", executorName: "realtimeHub" });
+  });
+
+  it("routes explicit voice alarms directly to the local scheduler", () => {
+    const alarm = toolsForAdapter("pi-mono", { surfaceKind: "realtime_voice", executionRole: "coordinator" }).find(
+      (tool) => tool.name === "set_alarm",
+    );
+
+    expect(alarm?.surfaces).toEqual(["desktop_chat", "realtime_voice"]);
+    expect(alarm?.voice?.realtimeDescription).toContain("never spawn an agent");
   });
 
   it("keeps current-screen evidence live and work context historical", () => {
