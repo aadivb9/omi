@@ -7,6 +7,11 @@ final class LocalAlarmSchedulerTests: XCTestCase {
     XCTAssertEqual(LocalAlarmScheduler.phoneWakeEscalationDelay, 8)
   }
 
+  func testFaceTimeHandoffCountsAsPhoneWakeEnabled() {
+    XCTAssertTrue(WakeCallPreferences.isAnyPhoneWakeEnabled(phoneWakeEnabled: false, faceTimeWakeEnabled: true))
+    XCTAssertFalse(WakeCallPreferences.isAnyPhoneWakeEnabled(phoneWakeEnabled: false, faceTimeWakeEnabled: false))
+  }
+
   func testHighPriorityTaskSchedulesFiveMinutesBeforeDueTime() {
     let now = Date(timeIntervalSince1970: 1_000)
     let dueAt = now.addingTimeInterval(900)

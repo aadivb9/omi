@@ -90,4 +90,8 @@ enum WakeCallPreferences {
     get { UserDefaults.standard.string(forKey: faceTimeTargetKey) ?? "" }
     set { UserDefaults.standard.set(newValue, forKey: faceTimeTargetKey) }
   }
+
+  nonisolated static func isAnyPhoneWakeEnabled(phoneWakeEnabled: Bool, faceTimeWakeEnabled: Bool) -> Bool {
+    phoneWakeEnabled || faceTimeWakeEnabled
+  }
 }

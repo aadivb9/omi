@@ -2002,7 +2002,9 @@ class ChatToolExecutor {
         title: title,
         fireDate: fireDate,
         source: .explicitChat,
-        phoneWakeCallEnabled: WakeCallPreferences.phoneWakeEnabled)
+        phoneWakeCallEnabled: WakeCallPreferences.isAnyPhoneWakeEnabled(
+          phoneWakeEnabled: WakeCallPreferences.phoneWakeEnabled,
+          faceTimeWakeEnabled: WakeCallPreferences.faceTimeWakeEnabled))
     else {
       return "Error: alarm time must be in the future"
     }
