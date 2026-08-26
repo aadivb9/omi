@@ -2001,7 +2001,8 @@ class ChatToolExecutor {
       let alarm = LocalAlarmScheduler.shared.schedule(
         title: title,
         fireDate: fireDate,
-        source: .explicitChat)
+        source: .explicitChat,
+        phoneWakeCallEnabled: WakeCallPreferences.phoneWakeEnabled)
     else {
       return "Error: alarm time must be in the future"
     }

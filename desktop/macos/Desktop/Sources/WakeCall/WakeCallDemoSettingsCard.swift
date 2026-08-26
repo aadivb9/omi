@@ -15,7 +15,7 @@ struct WakeCallDemoSettingsCard: View {
               .scaledFont(size: OmiType.subheading, weight: .medium)
               .foregroundColor(Ink.primary)
 
-            Text("PROTOTYPE")
+            Text("PHONE WAKE")
               .scaledFont(size: OmiType.micro, weight: .semibold)
               .foregroundColor(Ink.secondary)
               .padding(.horizontal, OmiSpacing.xs)
@@ -24,7 +24,7 @@ struct WakeCallDemoSettingsCard: View {
               .clipShape(Capsule())
           }
 
-          Text("A wake-up safety net that starts on your Mac and escalates if you stay asleep.")
+          Text("A wake-up safety net that rings your Mac first, then calls your phone if you stay asleep.")
             .scaledFont(size: OmiType.caption)
             .foregroundColor(Ink.secondary)
         }
@@ -33,6 +33,8 @@ struct WakeCallDemoSettingsCard: View {
       }
 
       wakeTimeRow
+
+      phoneSetup
 
       GlassSeparator()
 
@@ -77,6 +79,44 @@ struct WakeCallDemoSettingsCard: View {
     }
     .accessibilityElement(children: .combine)
     .accessibilityLabel("Wake Call rings this Mac first, then hands off to your phone if there is no response")
+  }
+
+  private var phoneSetup: some View {
+    VStack(alignment: .leading, spacing: OmiSpacing.sm) {
+      Toggle(
+        "Call my verified phone after 8 seconds",
+        isOn: Binding(
+          get: { controller.phoneWakeEnabled },
+          set: { controller.setPhoneWakeEnabled($0) })
+      )
+      .toggleStyle(.switch)
+      .accessibilityIdentifier("wake-call-phone-toggle")
+
+      Text(controller.phoneSetupDetail)
+        .scaledFont(size: OmiType.caption)
+        .foregroundColor(Ink.secondary)
+
+      if !controller.isPhoneVerified {
+        HStack(spacing: OmiSpacing.sm) {
+          TextField("+15551234567", text: $controller.phoneNumber)
+            .textFieldStyle(.roundedBorder)
+            .frame(maxWidth: 190)
+            .accessibilityLabel("Phone number for Wake Call")
+
+          if controller.isVerifyingPhone {
+            Button("Check verification") {
+              controller.checkPhoneVerification()
+            }
+            .buttonStyle(OmiButtonStyle(.secondary, size: .compact))
+          } else {
+            Button("Verify phone") {
+              controller.startPhoneVerification()
+            }
+            .buttonStyle(OmiButtonStyle(.secondary, size: .compact))
+          }
+        }
+      }
+    }
   }
 
   private func escalationStep(icon: String, title: String, detail: String) -> some View {

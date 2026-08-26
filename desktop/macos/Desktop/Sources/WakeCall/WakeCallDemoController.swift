@@ -2,12 +2,7 @@ import AppKit
 import Combine
 import Foundation
 
-/// A small, local state machine for the Wake Call prototype.
-///
-/// The demo deliberately stops at a phone-handoff state. Omi already has verified-number and
-/// Twilio infrastructure, but an automated outbound call needs a server-side schedule and an
-/// explicit user consent flow before it can be real. Keeping that boundary explicit lets the
-/// desktop interaction be demonstrated without ever placing an unexpected phone call.
+/// A small state machine for Omi's opt-in Wake Call flow.
 enum WakeCallDemoStage: Equatable {
   case idle
   case armed
@@ -30,7 +25,7 @@ enum WakeCallDemoStage: Equatable {
     case .idle: return "Omi will ring this Mac first, then escalate if you do not respond."
     case .armed: return "Your demo alarm rings in a few seconds."
     case .ringing: return "Tap “I’m awake” before the phone handoff begins."
-    case .escalating: return "Demo mode is showing the phone-call handoff. No call is placed."
+    case .escalating: return "Omi is calling your verified phone number now."
     case .acknowledged: return "Alarm silenced. Omi will keep your next wake time ready."
     }
   }
@@ -77,6 +72,11 @@ struct WakeCallDemoStateMachine {
 final class WakeCallDemoController: ObservableObject {
   @Published private(set) var stage: WakeCallDemoStage = .idle
   @Published var wakeTime = WakeCallDemoController.defaultWakeTime
+  @Published var phoneNumber = ""
+  @Published private(set) var phoneWakeEnabled = WakeCallPreferences.phoneWakeEnabled
+  @Published private(set) var phoneSetupDetail = "Checking your verified phone…"
+  @Published private(set) var isPhoneVerified = false
+  @Published private(set) var isVerifyingPhone = false
 
   static let demoDelay: UInt64 = 12
   static let escalationDelay: UInt64 = 8
@@ -84,10 +84,12 @@ final class WakeCallDemoController: ObservableObject {
   private var machine = WakeCallDemoStateMachine()
   private var alarmTask: Task<Void, Never>?
   private var escalationTask: Task<Void, Never>?
+  private var phoneCallTask: Task<Void, Never>?
   private let alarmPulse: () -> Void
 
   init(alarmPulse: @escaping () -> Void = { NSSound.beep() }) {
     self.alarmPulse = alarmPulse
+    Task { await refreshPhoneStatus() }
   }
 
   deinit {
@@ -130,6 +132,75 @@ final class WakeCallDemoController: ObservableObject {
     publishStage()
   }
 
+  func setPhoneWakeEnabled(_ enabled: Bool) {
+    guard enabled else {
+      phoneWakeEnabled = false
+      WakeCallPreferences.phoneWakeEnabled = false
+      return
+    }
+    guard isPhoneVerified else {
+      phoneSetupDetail = "Verify your phone number before enabling wake calls."
+      return
+    }
+    phoneWakeEnabled = true
+    WakeCallPreferences.phoneWakeEnabled = true
+  }
+
+  func startPhoneVerification() {
+    let number = phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !number.isEmpty else {
+      phoneSetupDetail = "Enter your phone number in international format, for example +15551234567."
+      return
+    }
+    isVerifyingPhone = true
+    phoneSetupDetail = "Starting verification…"
+    Task { [weak self] in
+      do {
+        try await WakeCallPhoneService.startVerification(phoneNumber: number)
+        guard let self else { return }
+        isVerifyingPhone = true
+        phoneSetupDetail = "Answer Omi’s verification call and enter the code, then choose Check verification."
+      } catch {
+        guard let self else { return }
+        isVerifyingPhone = false
+        phoneSetupDetail = error.localizedDescription
+      }
+    }
+  }
+
+  func checkPhoneVerification() {
+    let number = phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !number.isEmpty else { return }
+    Task { [weak self] in
+      do {
+        let verified = try await WakeCallPhoneService.checkVerification(phoneNumber: number)
+        guard let self else { return }
+        isPhoneVerified = verified
+        isVerifyingPhone = !verified
+        phoneSetupDetail =
+          verified
+          ? "Verified phone ready for wake calls."
+          : "Not verified yet. Finish the verification call, then try again."
+      } catch {
+        guard let self else { return }
+        phoneSetupDetail = error.localizedDescription
+      }
+    }
+  }
+
+  func refreshPhoneStatus() async {
+    do {
+      isPhoneVerified = try await WakeCallPhoneService.hasVerifiedPrimaryNumber()
+      isVerifyingPhone = false
+      phoneSetupDetail =
+        isPhoneVerified
+        ? "Verified phone ready for wake calls."
+        : "Add and verify a phone number to enable wake calls."
+    } catch {
+      phoneSetupDetail = "Couldn’t check phone setup: \(error.localizedDescription)"
+    }
+  }
+
   private func fireAlarm() {
     machine.fireAlarm()
     publishStage()
@@ -149,13 +220,25 @@ final class WakeCallDemoController: ObservableObject {
   private func startPhoneHandoff() {
     machine.startPhoneHandoff()
     publishStage()
+    guard phoneWakeEnabled else { return }
+    phoneCallTask = Task { [weak self] in
+      guard let self else { return }
+      do {
+        try await WakeCallPhoneService.placeWakeCall(label: "Wake up")
+        phoneSetupDetail = "Wake call placed to your verified phone."
+      } catch {
+        phoneSetupDetail = "Wake call failed: \(error.localizedDescription)"
+      }
+    }
   }
 
   private func cancelPendingTimers() {
     alarmTask?.cancel()
     escalationTask?.cancel()
+    phoneCallTask?.cancel()
     alarmTask = nil
     escalationTask = nil
+    phoneCallTask = nil
   }
 
   private func publishStage() {

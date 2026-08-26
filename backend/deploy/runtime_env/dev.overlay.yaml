@@ -199,6 +199,8 @@ overlay:
           source: environment
         TWILIO_TWIML_APP_SID:
           source: environment
+        TWILIO_WAKE_CALLER_ID:
+          source: environment
         X_OAUTH_CLIENT_ID:
           source: environment
         X_OAUTH_REDIRECT_URI:

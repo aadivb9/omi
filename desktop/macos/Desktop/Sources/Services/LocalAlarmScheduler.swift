@@ -21,12 +21,35 @@ final class LocalAlarmScheduler {
     let title: String
     let fireDate: Date
     let source: Source
+    let phoneWakeCallEnabled: Bool
+
+    init(id: String, title: String, fireDate: Date, source: Source, phoneWakeCallEnabled: Bool = false) {
+      self.id = id
+      self.title = title
+      self.fireDate = fireDate
+      self.source = source
+      self.phoneWakeCallEnabled = phoneWakeCallEnabled
+    }
+
+    private enum CodingKeys: String, CodingKey {
+      case id, title, fireDate, source, phoneWakeCallEnabled
+    }
+
+    init(from decoder: Decoder) throws {
+      let container = try decoder.container(keyedBy: CodingKeys.self)
+      id = try container.decode(String.self, forKey: .id)
+      title = try container.decode(String.self, forKey: .title)
+      fireDate = try container.decode(Date.self, forKey: .fireDate)
+      source = try container.decode(Source.self, forKey: .source)
+      phoneWakeCallEnabled = try container.decodeIfPresent(Bool.self, forKey: .phoneWakeCallEnabled) ?? false
+    }
   }
 
   private static let alarmsDefaultsKey = "localAlarmScheduler.alarms.v1"
   nonisolated private static let importantTaskLeadTime: TimeInterval = 5 * 60
   private var alarms: [String: Alarm] = [:]
   private var timers: [String: Timer] = [:]
+  private var phoneWakeTasks: [String: Task<Void, Never>] = [:]
   private var ringingSounds: [String: NSSound] = [:]
 
   private init() {
@@ -34,12 +57,23 @@ final class LocalAlarmScheduler {
   }
 
   @discardableResult
-  func schedule(title: String, fireDate: Date, id: String = UUID().uuidString, source: Source) -> Alarm? {
+  func schedule(
+    title: String,
+    fireDate: Date,
+    id: String = UUID().uuidString,
+    source: Source,
+    phoneWakeCallEnabled: Bool = false
+  ) -> Alarm? {
     let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmedTitle.isEmpty, fireDate > Date() else { return nil }
 
     cancel(id: id, persist: false)
-    let alarm = Alarm(id: id, title: trimmedTitle, fireDate: fireDate, source: source)
+    let alarm = Alarm(
+      id: id,
+      title: trimmedTitle,
+      fireDate: fireDate,
+      source: source,
+      phoneWakeCallEnabled: phoneWakeCallEnabled)
     alarms[id] = alarm
     arm(alarm)
     persist()
@@ -74,6 +108,7 @@ final class LocalAlarmScheduler {
 
   func cancel(id: String, persist: Bool = true) {
     timers.removeValue(forKey: id)?.invalidate()
+    phoneWakeTasks.removeValue(forKey: id)?.cancel()
     ringingSounds.removeValue(forKey: id)?.stop()
     alarms.removeValue(forKey: id)
     UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [id])
@@ -111,6 +146,23 @@ final class LocalAlarmScheduler {
     log("LocalAlarmScheduler: fired \(alarm.source.rawValue) alarm")
     presentAlarm(alarm) { [weak self] in
       self?.cancel(id: id)
+    }
+    schedulePhoneWakeCall(for: alarm)
+  }
+
+  private func schedulePhoneWakeCall(for alarm: Alarm) {
+    guard alarm.phoneWakeCallEnabled else { return }
+
+    phoneWakeTasks[alarm.id] = Task { [weak self] in
+      try? await Task.sleep(nanoseconds: 8_000_000_000)
+      guard !Task.isCancelled else { return }
+      do {
+        try await WakeCallPhoneService.placeWakeCall(label: alarm.title)
+        log("LocalAlarmScheduler: phone wake call placed")
+      } catch {
+        log("LocalAlarmScheduler: phone wake call could not be placed: \(error.localizedDescription)")
+      }
+      self?.phoneWakeTasks.removeValue(forKey: alarm.id)
     }
   }
 

@@ -29,6 +29,10 @@ environment_shared:
           config_map:
             name: '{env}-omi-backend-config'
             key: TWILIO_TWIML_APP_SID
+        TWILIO_WAKE_CALLER_ID:
+          config_map:
+            name: '{env}-omi-backend-config'
+            key: TWILIO_WAKE_CALLER_ID
         USE_VERTEX_AI:
           value: 'true'
         STT_PRERECORDED_MODEL:

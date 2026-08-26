@@ -15,7 +15,7 @@ install_twilio_stub()
 prepare_twilio_service_import()
 install_phone_calls_stub()
 
-from utils.twilio_service import generate_access_token, validate_twilio_signature
+from utils.twilio_service import generate_access_token, place_wake_call, validate_twilio_signature
 
 _MISSING = object()
 
@@ -174,3 +174,19 @@ def test_validate_twilio_signature_no_auth_token():
             '',
         )
         assert result is False
+
+
+def test_place_wake_call_uses_deployment_owned_caller_id():
+    client = MagicMock()
+    client.calls.create.return_value = MagicMock(sid='CAwake123')
+
+    with patch('utils.twilio_service._get_client', return_value=client), patch(
+        'utils.twilio_service.wake_call_caller_id', '+15550000000'
+    ):
+        call_sid = place_wake_call('+15551234567', 'Morning alarm')
+
+    assert call_sid == 'CAwake123'
+    request = client.calls.create.call_args.kwargs
+    assert request['to'] == '+15551234567'
+    assert request['from_'] == '+15550000000'
+    assert 'Morning alarm' in request['twiml']

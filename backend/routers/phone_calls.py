@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import traceback
@@ -23,10 +24,13 @@ from utils.twilio_service import (
     check_caller_id_verified,
     delete_caller_id,
     get_caller_id,
+    is_wake_call_configured,
+    place_wake_call,
     validate_twilio_signature,
 )
 
 E164_PATTERN = re.compile(r'^\+[1-9]\d{1,14}$')
+logger = logging.getLogger(__name__)
 
 
 def _redact_phone(number: str) -> str:
@@ -99,6 +103,14 @@ class TokenResponse(BaseModel):
     access_token: str
     ttl: int
     identity: str
+
+
+class WakeCallRequest(BaseModel):
+    label: str = Field(min_length=1, max_length=160, description="Short label announced by the wake call")
+
+
+class WakeCallResponse(BaseModel):
+    call_sid: str
 
 
 # ************************************************
@@ -240,6 +252,51 @@ def get_phone_token(uid: str = Depends(auth.get_current_user_uid)):
         return TokenResponse(**token_data)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate token: {str(e)}")
+
+
+# ************************************************
+# ************** WAKE CALL ENDPOINT **************
+# ************************************************
+
+
+@router.post("/v1/phone/wake", response_model=WakeCallResponse, tags=['phone-calls'])
+def request_wake_call(
+    request: WakeCallRequest,
+    uid: str = Depends(auth.get_current_user_uid),
+    _: None = Depends(rate_limit_dependency(endpoint="phone_wake_call", requests_per_window=5, window_seconds=3600)),
+):
+    """Call the authenticated user's verified primary number for a wake alarm.
+
+    The destination is intentionally not client-controlled: a wake alarm may
+    only call back the account owner's verified primary phone number.
+    """
+    snapshot = check_call_access(uid)
+    primary = phone_calls_db.get_primary_phone_number(uid)
+    if not primary or not isinstance(primary.get('phone_number'), str):
+        raise HTTPException(status_code=400, detail="No verified phone number found. Verify a number first.")
+    if not is_wake_call_configured():
+        raise HTTPException(status_code=503, detail="Wake calls are not configured for this environment")
+
+    phone_number = re.sub(r'[\s\-\(\).]+', '', primary['phone_number'])
+    if not E164_PATTERN.match(phone_number):
+        raise HTTPException(status_code=400, detail="Your verified phone number is invalid. Verify it again.")
+
+    check_destination_allowed(snapshot, phone_number)
+    if not snapshot.is_paid:
+        snapshot = reserve_phone_call_quota(uid)
+        if not snapshot.has_access:
+            raise HTTPException(status_code=402, detail="Monthly phone call limit reached")
+
+    try:
+        call_sid = place_wake_call(phone_number, request.label.strip())
+    except TwilioRestException:
+        logger.warning("wake_call: provider request failed")
+        raise HTTPException(status_code=502, detail="Omi could not place your wake call")
+    except Exception:
+        logger.warning("wake_call: unexpected provider failure")
+        raise HTTPException(status_code=502, detail="Omi could not place your wake call")
+
+    return WakeCallResponse(call_sid=call_sid)
 
 
 # ************************************************

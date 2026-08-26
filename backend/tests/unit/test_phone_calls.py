@@ -201,6 +201,34 @@ def test_check_verification_no_pending_record(mock_check, mock_db, client):
 
 
 # ---------------------------------------------------------------------------
+# POST /v1/phone/wake
+# ---------------------------------------------------------------------------
+
+
+@patch('routers.phone_calls.phone_calls_db')
+def test_wake_call_requires_verified_primary_number(mock_db, client):
+    mock_db.get_primary_phone_number.return_value = None
+
+    resp = client.post('/v1/phone/wake', json={'label': 'Morning alarm'})
+
+    assert resp.status_code == 400
+    assert 'No verified phone number' in resp.json()['detail']
+
+
+@patch('routers.phone_calls.place_wake_call', return_value='CAwake123')
+@patch('routers.phone_calls.is_wake_call_configured', return_value=True)
+@patch('routers.phone_calls.phone_calls_db')
+def test_wake_call_dials_only_the_users_verified_primary_number(mock_db, mock_configured, mock_place, client):
+    mock_db.get_primary_phone_number.return_value = {'phone_number': '+15551234567'}
+
+    resp = client.post('/v1/phone/wake', json={'label': 'Morning alarm'})
+
+    assert resp.status_code == 200
+    assert resp.json() == {'call_sid': 'CAwake123'}
+    mock_place.assert_called_once_with('+15551234567', 'Morning alarm')
+
+
+# ---------------------------------------------------------------------------
 # POST /v1/phone/twiml
 # ---------------------------------------------------------------------------
 

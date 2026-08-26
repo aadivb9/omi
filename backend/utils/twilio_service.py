@@ -26,6 +26,7 @@ except ImportError:
 from twilio.jwt.access_token import AccessToken
 from twilio.jwt.access_token.grants import VoiceGrant
 from twilio.request_validator import RequestValidator
+from twilio.twiml.voice_response import VoiceResponse
 
 from database import phone_calls as phone_calls_db
 
@@ -36,6 +37,7 @@ auth_token = os.getenv('TWILIO_AUTH_TOKEN')
 api_key_sid = os.getenv('TWILIO_API_KEY_SID')
 api_key_secret = os.getenv('TWILIO_API_KEY_SECRET')
 twiml_app_sid = os.getenv('TWILIO_TWIML_APP_SID')
+wake_call_caller_id = os.getenv('TWILIO_WAKE_CALLER_ID')
 
 _client = None
 _TWILIO_NOT_FOUND_CODES = {20404}
@@ -85,6 +87,31 @@ def generate_access_token(uid: str, ttl: int = 3600) -> Dict[str, Any]:
         'ttl': ttl,
         'identity': uid,
     }
+
+
+def is_wake_call_configured() -> bool:
+    """Return whether this deployment has a dedicated caller ID for wake calls."""
+    return bool(wake_call_caller_id)
+
+
+def place_wake_call(phone_number: str, label: str) -> str:
+    """Place an outbound Omi wake call to a verified number.
+
+    ``phone_number`` must come from the authenticated user's verified-number
+    record. The caller ID is deployment-owned so the user never receives a
+    confusing call from their own number.
+    """
+    if not wake_call_caller_id:
+        raise ValueError("TWILIO_WAKE_CALLER_ID must be set")
+
+    response = VoiceResponse()
+    response.say(f"This is your Omi wake call. {label}. Please wake up.")  # type: ignore[reportUnknownMemberType]
+    call = _get_client().calls.create(  # type: ignore[reportUnknownMemberType]
+        to=phone_number,
+        from_=wake_call_caller_id,
+        twiml=str(response),
+    )
+    return str(call.sid)
 
 
 def start_caller_id_verification(phone_number: str) -> Dict[str, Any]:
