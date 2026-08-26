@@ -1,0 +1,60 @@
+version: 2
+name: wake-call
+tier: manual
+description: Wake Call alarm escalation — Mac alarm rings, 8-second acknowledge window, then verified-phone call or FaceTime Audio handoff
+app: com.omi.computer-macos
+covers:
+  - desktop/macos/Desktop/Sources/WakeCall/WakeCallDemoSettingsCard.swift
+  - desktop/macos/Desktop/Sources/WakeCall/WakeCallDemoController.swift
+  - desktop/macos/Desktop/Sources/WakeCall/WakeCallPhoneService.swift
+  - desktop/macos/Desktop/Sources/WakeCall/FaceTimeWakeCallService.swift
+  - desktop/macos/Desktop/Sources/Services/LocalAlarmScheduler.swift
+preconditions:
+  - auth_ready
+
+# Manual tier: escalation leaves the app. A verified phone number needs a real
+# inbound call and code, and the FaceTime handoff needs a signed-in Apple
+# account plus the one-time System Events automation grant. Neither is
+# reproducible in CI, so this flow is driven by hand.
+
+steps:
+  - id: S1
+    name: Open the Wake Call card
+    do: "Open Settings and select Notifications & Privacy. Scroll to the Wake Call card (identifier: wake-call-demo). Verify the card shows the Wake Call title, the PHONE WAKE label, the saved wake time, and both escalation toggles (identifiers: wake-call-phone-toggle, wake-call-facetime-toggle)."
+    expect:
+      interactive_count: { min: 3 }
+      text_visible:
+        - Wake Call
+        - Wake time
+
+  - id: S2
+    name: Verify the phone escalation path
+    do: "Enter a phone number in E.164 format and click 'Verify phone'. Answer Omi's verification call, enter the spoken code, then click 'Check verification'. Verify the card's phone setup detail reports the number as verified and that the phone toggle can now be enabled."
+    expect:
+      interactive_count: { min: 1 }
+
+  - id: S3
+    name: Run the 12-second demo and let it escalate
+    do: "Enable the phone toggle, then click 'Start 12-second demo' (identifier: wake-call-start-demo). Wait for the local alarm to fire: the card must switch to the Wake up stage and the Mac must ring. Do not acknowledge. After the 8-second window the verified phone must ring. Verify the call arrives from the Omi-owned caller ID, not from the user's own number."
+    expect:
+      interactive_count: { min: 1 }
+      text_visible:
+        - Wake up
+
+  - id: S4
+    name: Acknowledging inside the window cancels escalation
+    do: "Click 'Reset demo', then 'Start 12-second demo' again. When the card reaches the Wake up stage, click 'I’m awake' (identifier: wake-call-acknowledge) before the 8-second window elapses. Verify the phone does NOT ring and the card returns to its idle stage."
+    expect:
+      interactive_count: { min: 1 }
+
+  - id: S5
+    name: FaceTime Audio handoff
+    do: "Disable the phone toggle and enable 'Use FaceTime Audio for my personal wake call' (identifier: wake-call-facetime-toggle). Enter the Apple ID email or phone number that receives FaceTime on the phone, then click 'Test FaceTime handoff'. Verify FaceTime opens an Audio call to that address and that the Call confirmation is pressed automatically without a manual click. On the first run macOS asks once for permission to control System Events — grant it and re-run to confirm no prompt appears the second time."
+    expect:
+      interactive_count: { min: 1 }
+
+  - id: S6
+    name: Chat-created alarm honors the same escalation
+    do: "In chat, ask 'Set an alarm for 30 seconds from now.' Verify Omi uses the set_alarm tool (a real Mac alarm) rather than creating a task, that the alarm rings at the requested time, and that the configured escalation path runs when the alarm is not acknowledged. Then quit the app before a second scheduled alarm's time and verify the macOS notification still delivers it."
+    expect:
+      interactive_count: { min: 1 }
