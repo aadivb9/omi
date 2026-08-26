@@ -47,6 +47,7 @@ final class LocalAlarmScheduler {
 
   private static let alarmsDefaultsKey = "localAlarmScheduler.alarms.v1"
   nonisolated private static let importantTaskLeadTime: TimeInterval = 5 * 60
+  nonisolated static let phoneWakeEscalationDelay: UInt64 = 8
   private var alarms: [String: Alarm] = [:]
   private var timers: [String: Timer] = [:]
   private var phoneWakeTasks: [String: Task<Void, Never>] = [:]
@@ -144,17 +145,21 @@ final class LocalAlarmScheduler {
     startRinging(id: id)
     NSApplication.shared.requestUserAttention(.criticalRequest)
     log("LocalAlarmScheduler: fired \(alarm.source.rawValue) alarm")
+    // Schedule escalation before presenting the blocking fallback alert. When
+    // no app window is visible, NSAlert.runModal() does not return until the
+    // person dismisses it; placing this below the alert would silently prevent
+    // the phone handoff from ever being armed.
+    schedulePhoneWakeCall(for: alarm)
     presentAlarm(alarm) { [weak self] in
       self?.cancel(id: id)
     }
-    schedulePhoneWakeCall(for: alarm)
   }
 
   private func schedulePhoneWakeCall(for alarm: Alarm) {
     guard alarm.phoneWakeCallEnabled else { return }
 
     phoneWakeTasks[alarm.id] = Task { [weak self] in
-      try? await Task.sleep(nanoseconds: 8_000_000_000)
+      try? await Task.sleep(nanoseconds: Self.phoneWakeEscalationDelay * 1_000_000_000)
       guard !Task.isCancelled else { return }
       do {
         if WakeCallPreferences.faceTimeWakeEnabled {

@@ -3,6 +3,10 @@ import XCTest
 @testable import Omi_Computer
 
 final class LocalAlarmSchedulerTests: XCTestCase {
+  func testPhoneWakeEscalationDelayIsEightSeconds() {
+    XCTAssertEqual(LocalAlarmScheduler.phoneWakeEscalationDelay, 8)
+  }
+
   func testHighPriorityTaskSchedulesFiveMinutesBeforeDueTime() {
     let now = Date(timeIntervalSince1970: 1_000)
     let dueAt = now.addingTimeInterval(900)
