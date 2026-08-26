@@ -50,7 +50,7 @@ final class LocalAlarmScheduler {
   nonisolated static let phoneWakeEscalationDelay: UInt64 = 8
   private var alarms: [String: Alarm] = [:]
   private var timers: [String: Timer] = [:]
-  private var phoneWakeTasks: [String: Task<Void, Never>] = [:]
+  private var phoneWakeTimers: [String: Timer] = [:]
   private var ringingSounds: [String: NSSound] = [:]
 
   private init() {
@@ -109,7 +109,7 @@ final class LocalAlarmScheduler {
 
   func cancel(id: String, persist: Bool = true) {
     timers.removeValue(forKey: id)?.invalidate()
-    phoneWakeTasks.removeValue(forKey: id)?.cancel()
+    phoneWakeTimers.removeValue(forKey: id)?.invalidate()
     ringingSounds.removeValue(forKey: id)?.stop()
     alarms.removeValue(forKey: id)
     UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [id])
@@ -158,21 +158,38 @@ final class LocalAlarmScheduler {
   private func schedulePhoneWakeCall(for alarm: Alarm) {
     guard alarm.phoneWakeCallEnabled else { return }
 
-    phoneWakeTasks[alarm.id] = Task { [weak self] in
-      try? await Task.sleep(nanoseconds: Self.phoneWakeEscalationDelay * 1_000_000_000)
-      guard !Task.isCancelled else { return }
-      do {
-        if WakeCallPreferences.faceTimeWakeEnabled {
-          try FaceTimeWakeCallService.startAudioCall(target: WakeCallPreferences.faceTimeTarget)
-          log("LocalAlarmScheduler: FaceTime wake handoff started")
-        } else {
-          try await WakeCallPhoneService.placeWakeCall(label: alarm.title)
-          log("LocalAlarmScheduler: phone wake call placed")
-        }
-      } catch {
-        log("LocalAlarmScheduler: phone wake call could not be placed: \(error.localizedDescription)")
+    let timer = Timer(timeInterval: TimeInterval(Self.phoneWakeEscalationDelay), repeats: false) { [weak self] _ in
+      MainActor.assumeIsolated {
+        self?.placePhoneWakeCall(for: alarm)
       }
-      self?.phoneWakeTasks.removeValue(forKey: alarm.id)
+    }
+    phoneWakeTimers[alarm.id] = timer
+    // The normal app run loop keeps processing this timer while NSAlert is
+    // modal. A Swift MainActor task, by contrast, does not resume until the
+    // alert returns, which meant the previous handoff never fired.
+    RunLoop.main.add(timer, forMode: .common)
+    RunLoop.main.add(timer, forMode: .modalPanel)
+    log("LocalAlarmScheduler: phone wake handoff armed")
+  }
+
+  private func placePhoneWakeCall(for alarm: Alarm) {
+    phoneWakeTimers.removeValue(forKey: alarm.id)?.invalidate()
+    do {
+      if WakeCallPreferences.faceTimeWakeEnabled {
+        try FaceTimeWakeCallService.startAudioCall(target: WakeCallPreferences.faceTimeTarget)
+        log("LocalAlarmScheduler: FaceTime wake handoff started")
+      } else {
+        Task {
+          do {
+            try await WakeCallPhoneService.placeWakeCall(label: alarm.title)
+            log("LocalAlarmScheduler: phone wake call placed")
+          } catch {
+            log("LocalAlarmScheduler: phone wake call could not be placed: \(error.localizedDescription)")
+          }
+        }
+      }
+    } catch {
+      log("LocalAlarmScheduler: phone wake call could not be placed: \(error.localizedDescription)")
     }
   }
 
