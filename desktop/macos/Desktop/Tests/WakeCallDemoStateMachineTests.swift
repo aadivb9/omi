@@ -46,4 +46,11 @@ final class WakeCallDemoStateMachineTests: XCTestCase {
     machine.startPhoneHandoff()
     XCTAssertEqual(machine.stage, .idle)
   }
+
+  func testFaceTimeAudioURLRejectsUnsafeTargets() {
+    XCTAssertEqual(
+      FaceTimeWakeCallService.audioCallURL(target: "aadi@example.com")?.absoluteString,
+      "facetime-audio://aadi@example.com")
+    XCTAssertNil(FaceTimeWakeCallService.audioCallURL(target: "aadi@example.com?call=other"))
+  }
 }

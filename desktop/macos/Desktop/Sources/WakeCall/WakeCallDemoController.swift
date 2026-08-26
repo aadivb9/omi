@@ -74,6 +74,8 @@ final class WakeCallDemoController: ObservableObject {
   @Published var wakeTime = WakeCallDemoController.defaultWakeTime
   @Published var phoneNumber = ""
   @Published private(set) var phoneWakeEnabled = WakeCallPreferences.phoneWakeEnabled
+  @Published var faceTimeTarget = WakeCallPreferences.faceTimeTarget
+  @Published private(set) var faceTimeWakeEnabled = WakeCallPreferences.faceTimeWakeEnabled
   @Published private(set) var phoneSetupDetail = "Checking your verified phone…"
   @Published private(set) var isPhoneVerified = false
   @Published private(set) var isVerifyingPhone = false
@@ -144,6 +146,31 @@ final class WakeCallDemoController: ObservableObject {
     }
     phoneWakeEnabled = true
     WakeCallPreferences.phoneWakeEnabled = true
+  }
+
+  func setFaceTimeWakeEnabled(_ enabled: Bool) {
+    guard enabled else {
+      faceTimeWakeEnabled = false
+      WakeCallPreferences.faceTimeWakeEnabled = false
+      return
+    }
+    guard FaceTimeWakeCallService.audioCallURL(target: faceTimeTarget) != nil else {
+      phoneSetupDetail = "Add the email address or phone number you use with FaceTime first."
+      return
+    }
+    WakeCallPreferences.faceTimeTarget = faceTimeTarget.trimmingCharacters(in: .whitespacesAndNewlines)
+    faceTimeWakeEnabled = true
+    WakeCallPreferences.faceTimeWakeEnabled = true
+  }
+
+  func testFaceTimeHandoff() {
+    do {
+      WakeCallPreferences.faceTimeTarget = faceTimeTarget.trimmingCharacters(in: .whitespacesAndNewlines)
+      try FaceTimeWakeCallService.startAudioCall(target: faceTimeTarget)
+      phoneSetupDetail = "FaceTime Audio handoff started."
+    } catch {
+      phoneSetupDetail = error.localizedDescription
+    }
   }
 
   func startPhoneVerification() {
@@ -220,12 +247,18 @@ final class WakeCallDemoController: ObservableObject {
   private func startPhoneHandoff() {
     machine.startPhoneHandoff()
     publishStage()
-    guard phoneWakeEnabled else { return }
+    guard phoneWakeEnabled || faceTimeWakeEnabled else { return }
     phoneCallTask = Task { [weak self] in
       guard let self else { return }
       do {
-        try await WakeCallPhoneService.placeWakeCall(label: "Wake up")
-        phoneSetupDetail = "Wake call placed to your verified phone."
+        if faceTimeWakeEnabled {
+          WakeCallPreferences.faceTimeTarget = faceTimeTarget.trimmingCharacters(in: .whitespacesAndNewlines)
+          try FaceTimeWakeCallService.startAudioCall(target: faceTimeTarget)
+          phoneSetupDetail = "FaceTime Audio handoff started."
+        } else {
+          try await WakeCallPhoneService.placeWakeCall(label: "Wake up")
+          phoneSetupDetail = "Wake call placed to your verified phone."
+        }
       } catch {
         phoneSetupDetail = "Wake call failed: \(error.localizedDescription)"
       }

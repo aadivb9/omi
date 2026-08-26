@@ -36,6 +36,8 @@ struct WakeCallDemoSettingsCard: View {
 
       phoneSetup
 
+      faceTimeSetup
+
       GlassSeparator()
 
       escalationPath
@@ -115,6 +117,36 @@ struct WakeCallDemoSettingsCard: View {
             .buttonStyle(OmiButtonStyle(.secondary, size: .compact))
           }
         }
+      }
+    }
+  }
+
+  private var faceTimeSetup: some View {
+    VStack(alignment: .leading, spacing: OmiSpacing.sm) {
+      Toggle(
+        "Use FaceTime Audio for my personal wake call",
+        isOn: Binding(
+          get: { controller.faceTimeWakeEnabled },
+          set: { controller.setFaceTimeWakeEnabled($0) })
+      )
+      .toggleStyle(.switch)
+      .accessibilityIdentifier("wake-call-facetime-toggle")
+
+      Text("No Omi plan needed. Omi opens a FaceTime Audio call from this Mac after the 8-second handoff.")
+        .scaledFont(size: OmiType.caption)
+        .foregroundColor(Ink.secondary)
+
+      HStack(spacing: OmiSpacing.sm) {
+        TextField("Apple ID email or FaceTime number", text: $controller.faceTimeTarget)
+          .textFieldStyle(.roundedBorder)
+          .frame(maxWidth: 260)
+          .accessibilityLabel("FaceTime address for Wake Call")
+
+        Button("Test FaceTime handoff") {
+          controller.testFaceTimeHandoff()
+        }
+        .buttonStyle(OmiButtonStyle(.secondary, size: .compact))
+        .accessibilityLabel("Start a FaceTime Audio call now")
       }
     }
   }

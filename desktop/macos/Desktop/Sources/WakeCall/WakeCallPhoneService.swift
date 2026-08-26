@@ -73,9 +73,21 @@ enum WakeCallPhoneService {
 
 enum WakeCallPreferences {
   private static let phoneWakeEnabledKey = "wakeCall.phoneWakeEnabled"
+  private static let faceTimeWakeEnabledKey = "wakeCall.faceTimeWakeEnabled"
+  private static let faceTimeTargetKey = "wakeCall.faceTimeTarget"
 
   static var phoneWakeEnabled: Bool {
     get { UserDefaults.standard.bool(forKey: phoneWakeEnabledKey) }
     set { UserDefaults.standard.set(newValue, forKey: phoneWakeEnabledKey) }
+  }
+
+  static var faceTimeWakeEnabled: Bool {
+    get { UserDefaults.standard.bool(forKey: faceTimeWakeEnabledKey) }
+    set { UserDefaults.standard.set(newValue, forKey: faceTimeWakeEnabledKey) }
+  }
+
+  static var faceTimeTarget: String {
+    get { UserDefaults.standard.string(forKey: faceTimeTargetKey) ?? "" }
+    set { UserDefaults.standard.set(newValue, forKey: faceTimeTargetKey) }
   }
 }

@@ -157,8 +157,13 @@ final class LocalAlarmScheduler {
       try? await Task.sleep(nanoseconds: 8_000_000_000)
       guard !Task.isCancelled else { return }
       do {
-        try await WakeCallPhoneService.placeWakeCall(label: alarm.title)
-        log("LocalAlarmScheduler: phone wake call placed")
+        if WakeCallPreferences.faceTimeWakeEnabled {
+          try FaceTimeWakeCallService.startAudioCall(target: WakeCallPreferences.faceTimeTarget)
+          log("LocalAlarmScheduler: FaceTime wake handoff started")
+        } else {
+          try await WakeCallPhoneService.placeWakeCall(label: alarm.title)
+          log("LocalAlarmScheduler: phone wake call placed")
+        }
       } catch {
         log("LocalAlarmScheduler: phone wake call could not be placed: \(error.localizedDescription)")
       }
