@@ -132,9 +132,11 @@ struct WakeCallDemoSettingsCard: View {
       .toggleStyle(.switch)
       .accessibilityIdentifier("wake-call-facetime-toggle")
 
-      Text("No Omi plan needed. Omi opens a FaceTime Audio call from this Mac after the 8-second handoff.")
-        .scaledFont(size: OmiType.caption)
-        .foregroundColor(Ink.secondary)
+      Text(
+        "No Omi plan needed. Omi opens FaceTime Audio and presses its Call confirmation after the 8-second handoff. macOS asks once for permission."
+      )
+      .scaledFont(size: OmiType.caption)
+      .foregroundColor(Ink.secondary)
 
       HStack(spacing: OmiSpacing.sm) {
         TextField("Apple ID email or FaceTime number", text: $controller.faceTimeTarget)

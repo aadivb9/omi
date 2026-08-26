@@ -30,6 +30,7 @@ enum FaceTimeWakeCallService {
     guard NSWorkspace.shared.open(url) else {
       throw Error.launchFailed
     }
+    pressFaceTimeCallButtonWhenReady()
   }
 
   static func audioCallURL(target: String) -> URL? {
@@ -37,5 +38,48 @@ enum FaceTimeWakeCallService {
     guard !value.isEmpty else { return nil }
     guard !value.contains(where: { $0.isWhitespace || $0 == "/" || $0 == "?" || $0 == "#" }) else { return nil }
     return URL(string: "facetime-audio://\(value)")
+  }
+
+  /// FaceTime has no public API for confirming an outgoing call. Its URL scheme
+  /// only opens the confirmation UI, so retry the accessibility press after the
+  /// window appears. macOS asks once for permission to control System Events.
+  private static func pressFaceTimeCallButtonWhenReady() {
+    DispatchQueue.global(qos: .userInitiated).async {
+      for _ in 0..<8 {
+        Thread.sleep(forTimeInterval: 0.5)
+        if pressFaceTimeCallButton() { return }
+      }
+      log("FaceTimeWakeCallService: call confirmation was not available to auto-press")
+    }
+  }
+
+  private static func pressFaceTimeCallButton() -> Bool {
+    let source = """
+      tell application "System Events"
+        tell process "FaceTime"
+          repeat with theWindow in windows
+            if exists button "Call" of theWindow then
+              click button "Call" of theWindow
+              return "pressed"
+            end if
+          end repeat
+        end tell
+      end tell
+      return "not_found"
+      """
+    guard let script = NSAppleScript(source: source) else { return false }
+    var error: NSDictionary?
+    let result = script.executeAndReturnError(&error)
+    if let error {
+      log(
+        "FaceTimeWakeCallService: automation permission is required (error \(error[NSAppleScript.errorNumber] ?? "unknown"))"
+      )
+      return false
+    }
+    let pressed = result.stringValue == "pressed"
+    if pressed {
+      log("FaceTimeWakeCallService: FaceTime call confirmation pressed")
+    }
+    return pressed
   }
 }

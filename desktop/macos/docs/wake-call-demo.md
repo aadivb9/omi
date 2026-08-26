@@ -14,7 +14,7 @@ The desktop chat can also set a real local Mac alarm. Ask: **“Set an alarm for
 
 ### Use it immediately with FaceTime
 
-If the Omi phone-call plan is unavailable, enable **Use FaceTime Audio for my personal wake call**, enter the Apple ID email (or phone number) that receives FaceTime on your phone, and use **Test FaceTime handoff**. This opens FaceTime Audio from the Mac; it uses the Mac's signed-in Apple account and does not consume an Omi phone-call allowance.
+If the Omi phone-call plan is unavailable, enable **Use FaceTime Audio for my personal wake call**, enter the Apple ID email (or phone number) that receives FaceTime on your phone, and use **Test FaceTime handoff**. This opens FaceTime Audio from the Mac and presses FaceTime's Call confirmation through macOS Accessibility automation. The first run needs permission to control System Events; later alarms do not need a FaceTime click. It uses the Mac's signed-in Apple account and does not consume an Omi phone-call allowance.
 
 ## Server configuration
 
