@@ -5,7 +5,26 @@ import SwiftUI
 
 @MainActor
 extension AppState {
-  func requestMicrophonePermission() {
+  /// Start a native permission request and return the generation that owns its callback.
+  /// TCC does not expose cancellation, so leaving onboarding invalidates the generation instead.
+  func beginPermissionRequest() -> UInt64 {
+    permissionRequestGeneration &+= 1
+    return permissionRequestGeneration
+  }
+
+  func isPermissionRequestCurrent(_ generation: UInt64) -> Bool {
+    generation == permissionRequestGeneration
+  }
+
+  /// Fence callbacks from a permission prompt that the user skipped or abandoned, and make sure
+  /// the shell is visible again if an older settings flow had captured its frame.
+  func cancelPendingPermissionRequests() {
+    permissionRequestGeneration &+= 1
+    ShellSummon.restoreAfterPermissionPrompt()
+  }
+
+  func requestMicrophonePermission(startTranscriptionAfterGrant: Bool = true) {
+    let requestGeneration = beginPermissionRequest()
     let status = AudioCaptureService.authorizationStatus()
     log("Requesting microphone permission, current status: \(status.rawValue)")
 
@@ -25,6 +44,7 @@ extension AppState {
     Task {
       let granted = await AudioCaptureService.requestPermission()
       await MainActor.run {
+        guard isPermissionRequestCurrent(requestGeneration) else { return }
         if shellWasSuspended { ShellSummon.restoreAfterPermissionPrompt() }
         self.hasMicrophonePermission = granted
         log("Microphone permission request completed, granted: \(granted)")
@@ -32,7 +52,7 @@ extension AppState {
           log("Microphone permission granted")
           // Only start transcription if onboarding is complete
           // During onboarding, we just update the permission state
-          if self.hasCompletedOnboarding {
+          if startTranscriptionAfterGrant && self.hasCompletedOnboarding {
             self.startTranscription()
           }
         } else {

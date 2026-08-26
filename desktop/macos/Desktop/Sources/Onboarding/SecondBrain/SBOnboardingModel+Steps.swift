@@ -35,7 +35,9 @@ extension SBOnboardingModel {
     switch key {
     case "microphone":
       micState = .waiting
-      appState.requestMicrophonePermission()
+      // Onboarding only records the grant. Capture starts from the explicit capture choice at the
+      // end; a late TCC callback must not start recording after the user skips setup.
+      appState.requestMicrophonePermission(startTranscriptionAfterGrant: false)
       pollPermission(key)
     case "system_audio":
       // A Core Audio process tap has its own consent in addition to Screen

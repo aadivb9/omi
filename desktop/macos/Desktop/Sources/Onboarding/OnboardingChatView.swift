@@ -295,6 +295,7 @@ struct OnboardingChatView: View {
                     .buttonStyle(InkButtonStyle(kind: .primary))
                   Button("Skip for now") {
                     guard pendingPermissionType == pending else { return }
+                    ChatToolExecutor.cancelPendingPermissionRequests()
                     pendingPermissionType = nil
                     permissionHelpTimer?.cancel()
                     permissionHelpTimer = nil
@@ -469,6 +470,11 @@ struct OnboardingChatView: View {
     }
     .alert("Are you sure?", isPresented: $showSkipConfirmation) {
       Button("Skip anyway", role: .destructive) {
+        ChatToolExecutor.cancelPendingPermissionRequests()
+        pendingPermissionType = nil
+        quickReplyOptions = []
+        permissionHelpTimer?.cancel()
+        permissionHelpTimer = nil
         PermissionDragGuidance.dismiss()
         onSkip()
       }
@@ -1194,6 +1200,12 @@ struct OnboardingChatView: View {
     Task {
       let helpMessage = await generatePermissionHelp(for: permType)
       await MainActor.run {
+        // Screenshot analysis can finish after the user skipped. Never show stale permission help.
+        let stillPending =
+          pendingPermissionType == permType
+          || (!quickReplyOptions.isEmpty
+            && self.permissionType(for: quickReplyQuestion, options: quickReplyOptions) == permType)
+        guard stillPending else { return }
         let permLabel = permissionDisplayName(permType)
         FloatingControlBarManager.shared.showNotification(
           ownerID: ownerID,
@@ -1285,10 +1297,12 @@ struct OnboardingChatView: View {
 
   private func handleOnboardingComplete() {
     log("OnboardingChatView: Chat step complete, advancing to next onboarding step")
+    ChatToolExecutor.cancelPendingPermissionRequests()
 
     // Clean up permission help timer
     permissionHelpTimer?.cancel()
     permissionHelpTimer = nil
+    pendingPermissionType = nil
 
     // Clean up parallel exploration
     explorationTask?.cancel()

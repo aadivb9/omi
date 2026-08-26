@@ -217,6 +217,22 @@ final class SBOnboardingPermissionFlowTests: XCTestCase {
     XCTAssertEqual(model.step, .mic)
   }
 
+  func testLeavingPermissionStepInvalidatesNativePromptCallbacks() {
+    let model = makeModel()
+    model.step = .mic
+    model.micState = .waiting
+    let generationBeforeLeaving = model.appState.permissionRequestGeneration
+
+    model.advance(userAnswer: "Skip", to: .systemAudio)
+
+    XCTAssertEqual(
+      model.appState.permissionRequestGeneration,
+      generationBeforeLeaving &+ 1,
+      "skipping must fence the native callback that macOS may deliver later")
+    XCTAssertEqual(model.micState, .ask, "the abandoned row must not remain stuck in Waiting")
+    model.streamTask?.cancel()
+  }
+
   func testAProbeThatFinishesAfterTheUserMovedOnNeverYanksTheFlowForward() async {
     let model = makeModel()
     model.step = .mic

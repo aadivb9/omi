@@ -305,6 +305,9 @@ class AppState: ObservableObject {
   // currentTranscript is internal-only (not observed by views), so no @Published needed
   var currentTranscript: String = ""
   @Published var hasMicrophonePermission = false
+  /// Invalidates callbacks from native permission prompts when onboarding moves on or ends.
+  /// macOS TCC callbacks cannot be cancelled, so consumers must fence their side effects instead.
+  var permissionRequestGeneration: UInt64 = 0
   @Published var hasSystemAudioPermission = false
   @Published var systemAudioPermissionStatus: SystemAudioPermissionStatus = .unknown
   @Published var isSystemAudioSupported = false

@@ -520,6 +520,8 @@ final class SBOnboardingModel: ObservableObject {
     if let userAnswer, !userAnswer.isEmpty {
       thread.append(Msg(isOmi: false, text: userAnswer))
     }
+    cancelPermissionPollForCurrentStep()
+    appState.cancelPendingPermissionRequests()
     teardownStep(step)
     // Don't ask for a permission the user has already granted — skip straight to
     // the first step that still needs an answer.
@@ -537,6 +539,7 @@ final class SBOnboardingModel: ObservableObject {
     guard let previous = Step(rawValue: step.rawValue - 1) else { return }
     teardownStep(step)
     cancelPermissionPollForCurrentStep()
+    appState.cancelPendingPermissionRequests()
     rehydrateDrafts()
     step = previous
     UserDefaults.standard.set(previous.rawValue, forKey: Self.resumeStepKey)
@@ -703,6 +706,7 @@ final class SBOnboardingModel: ObservableObject {
   /// `clearOnboardingChatFlag` is the only real difference between the two
   /// paths, and it is ordered exactly where each path had it.
   func finishOnboardingHandoff(clearOnboardingChatFlag: Bool) {
+    appState.cancelPendingPermissionRequests()
     teardownAll()
     // Fades rather than cuts: onboarding's last beat should not end on a click.
     OmiOnboardingCinematic.stopAmbientMusic()

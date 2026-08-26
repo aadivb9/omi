@@ -317,11 +317,12 @@ enum ShellSummon {
     summon()
   }
 
-  /// Temporarily remove the main Omi surface before handing control to macOS permission UI.
+  /// Keep the main Omi surface available while handing control to macOS permission UI.
   ///
-  /// This does not deactivate the application: callers may be about to trigger an in-process
-  /// microphone/notification prompt, and AppKit needs Omi to remain the active owner of that prompt.
-  /// A second call while the flow is already suspended is intentionally a no-op.
+  /// The setup window is the only onboarding window. Ordering it out while opening System Settings
+  /// made macOS treat setup as closed, which could terminate Omi and left users with no Allow or
+  /// Skip control to return to. Keep it visible behind System Settings; activation still restores
+  /// focus and the remembered frame. A second call while the flow is already suspended is a no-op.
   @discardableResult
   static func suspendForPermissionPrompt() -> Bool {
     guard let window = shellWindow(), window.isVisible else { return false }
@@ -329,7 +330,6 @@ enum ShellSummon {
       permissionSuspendedFrame = window.frame
       rememberFrame(of: window)
     }
-    window.orderOut(nil)
     return true
   }
 

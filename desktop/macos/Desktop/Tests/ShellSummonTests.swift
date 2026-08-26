@@ -65,7 +65,7 @@ final class ShellSummonTests: XCTestCase {
   }
 
   @MainActor
-  func testPermissionSuspensionRestoresTheVisibleShellWithoutRepositioningIt() throws {
+  func testPermissionSuspensionKeepsTheVisibleShellWithoutRepositioningIt() throws {
     let window = makeShellWindow()
     window.title = OMIApp.currentWindowTitle
     let placed = NSRect(x: 220, y: 140, width: 960, height: 700)
@@ -83,7 +83,7 @@ final class ShellSummonTests: XCTestCase {
         + "frame preservation is only testable in a real session")
 
     XCTAssertTrue(ShellSummon.suspendForPermissionPrompt())
-    XCTAssertFalse(window.isVisible)
+    XCTAssertTrue(window.isVisible, "permission UI must not make setup look closed or terminate it")
 
     ShellSummon.restoreAfterPermissionPrompt()
 

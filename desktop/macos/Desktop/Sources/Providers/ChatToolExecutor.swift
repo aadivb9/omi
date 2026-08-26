@@ -86,6 +86,17 @@ class ChatToolExecutor {
   /// Called when request_permission returns "pending" — used to trigger the permission help timer
   static var onPermissionPending: ((_ permissionType: String) -> Void)?
 
+  /// Invalidates native permission requests when the onboarding surface is skipped or dismissed.
+  /// TCC callbacks cannot be cancelled, so request_permission also checks this generation before
+  /// opening Settings, starting capture, or publishing a pending state.
+  private static var permissionRequestGeneration: UInt64 = 0
+
+  static func cancelPendingPermissionRequests() {
+    permissionRequestGeneration &+= 1
+    PermissionDragGuidance.dismiss()
+    ShellSummon.restoreAfterPermissionPrompt()
+  }
+
   /// Email/calendar insights from background reading (set by OnboardingChatView)
   static var emailInsightsText: String?
   static var calendarInsightsText: String?
@@ -264,6 +275,9 @@ class ChatToolExecutor {
         toolCall.arguments,
         expectedOwnerID: expectedOwnerID)
 
+    case .setAlarm:
+      return executeSetAlarm(toolCall.arguments)
+
     case .renderChatBlocks:
       return await ChatFirstBlockToolExecutor.execute(
         toolCall.arguments,
@@ -343,6 +357,7 @@ class ChatToolExecutor {
           authorizationSnapshot: permissionAuthorization)
       else { return authorizedOwnerChangedResult() }
       let permType = toolCall.arguments["type"] as? String ?? "unknown"
+      if permissionToolResultWasCancelled(result) { return result }
       let granted = permissionToolResultGranted(result)
       if isOnboardingRequest {
         AnalyticsManager.shared.onboardingChatToolUsed(
@@ -1958,6 +1973,42 @@ class ChatToolExecutor {
 
   // MARK: - Task Tools
 
+  static func executeSetAlarm(_ args: [String: Any]) -> String {
+    let title = (args["title"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Omi alarm"
+    let fireDate: Date?
+    let confirmation: String
+
+    if let seconds = args["seconds_from_now"] as? NSNumber {
+      let value = seconds.doubleValue
+      guard value >= 1, value <= 31_536_000 else {
+        return "Error: seconds_from_now must be between 1 second and 365 days"
+      }
+      fireDate = Date().addingTimeInterval(value)
+      let unit = value == 1 ? "second" : "seconds"
+      confirmation =
+        "Alarm set. Say exactly: Your alarm is set for \(Int(value)) \(unit) from now. Do not calculate or mention an absolute clock time."
+    } else if let scheduledAt = args["scheduled_at"] as? String {
+      let formatter = ISO8601DateFormatter()
+      formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+      let fallback = ISO8601DateFormatter()
+      fireDate = formatter.date(from: scheduledAt) ?? fallback.date(from: scheduledAt)
+      confirmation = "Alarm set for the requested scheduled time."
+    } else {
+      return "Error: seconds_from_now or scheduled_at is required"
+    }
+
+    guard let fireDate,
+      let alarm = LocalAlarmScheduler.shared.schedule(
+        title: title,
+        fireDate: fireDate,
+        source: .explicitChat)
+    else {
+      return "Error: alarm time must be in the future"
+    }
+
+    return "\(confirmation) Label: \(alarm.title)"
+  }
+
   /// Mark a task completed via TasksStore (handles local + API sync)
   private static func executeCompleteTask(
     _ args: [String: Any],
@@ -2069,6 +2120,11 @@ class ChatToolExecutor {
       ])
     }
 
+    let requestGeneration = permissionRequestGeneration
+    guard isPermissionRequestCurrent(requestGeneration) else {
+      return cancelledPermissionRequestResult(type: type)
+    }
+
     AnalyticsManager.shared.permissionRequested(permission: type)
     let appState = onboardingAppState ?? AppState.current
 
@@ -2107,8 +2163,11 @@ class ChatToolExecutor {
       guard let screenRecordingGranted = requestResult,
         isPermissionAuthorizationCurrent(
           expectedOwnerID,
-          authorizationSnapshot: authorizationSnapshot)
-      else { return authorizedOwnerChangedResult() }
+          authorizationSnapshot: authorizationSnapshot),
+        isPermissionRequestCurrent(requestGeneration)
+      else {
+        return cancelledPermissionRequestResult(type: type)
+      }
       // Already granted → don't reopen System Settings over a toggle that's
       // already on (mirrors requestScreenRecordingAccessAndOpenSettings).
       if !screenRecordingGranted {
@@ -2124,8 +2183,9 @@ class ChatToolExecutor {
         guard
           isPermissionAuthorizationCurrent(
             expectedOwnerID,
-            authorizationSnapshot: authorizationSnapshot)
-        else { return authorizedOwnerChangedResult() }
+            authorizationSnapshot: authorizationSnapshot),
+          isPermissionRequestCurrent(requestGeneration)
+        else { return cancelledPermissionRequestResult(type: type) }
       }
       appState?.checkScreenRecordingPermission()
       return permissionRequestResult(
@@ -2146,15 +2206,17 @@ class ChatToolExecutor {
       guard let granted = await requestMicrophonePermissionDirectly(),
         isPermissionAuthorizationCurrent(
           expectedOwnerID,
-          authorizationSnapshot: authorizationSnapshot)
-      else { return authorizedOwnerChangedResult() }
+          authorizationSnapshot: authorizationSnapshot),
+        isPermissionRequestCurrent(requestGeneration)
+      else { return cancelledPermissionRequestResult(type: type) }
       appState?.hasMicrophonePermission = granted
       if granted, let appState, appState.hasCompletedOnboarding {
         guard
           isPermissionAuthorizationCurrent(
             expectedOwnerID,
-            authorizationSnapshot: authorizationSnapshot)
-        else { return authorizedOwnerChangedResult() }
+            authorizationSnapshot: authorizationSnapshot),
+          isPermissionRequestCurrent(requestGeneration)
+        else { return cancelledPermissionRequestResult(type: type) }
         appState.startTranscription()
       }
       return permissionRequestResult(
@@ -2173,8 +2235,9 @@ class ChatToolExecutor {
       guard let granted = await requestNotificationPermissionDirectly(),
         isPermissionAuthorizationCurrent(
           expectedOwnerID,
-          authorizationSnapshot: authorizationSnapshot)
-      else { return authorizedOwnerChangedResult() }
+          authorizationSnapshot: authorizationSnapshot),
+        isPermissionRequestCurrent(requestGeneration)
+      else { return cancelledPermissionRequestResult(type: type) }
       appState?.hasNotificationPermission = granted
       if !granted {
         _ = openNotificationPrivacySettings(
@@ -2193,8 +2256,9 @@ class ChatToolExecutor {
       guard
         isPermissionAuthorizationCurrent(
           expectedOwnerID,
-          authorizationSnapshot: authorizationSnapshot)
-      else { return authorizedOwnerChangedResult() }
+          authorizationSnapshot: authorizationSnapshot),
+        isPermissionRequestCurrent(requestGeneration)
+      else { return cancelledPermissionRequestResult(type: type) }
       requestAccessibilityPermissionDirectly(
         expectedOwnerID: expectedOwnerID,
         authorizationSnapshot: authorizationSnapshot)
@@ -2202,8 +2266,9 @@ class ChatToolExecutor {
       guard
         isPermissionAuthorizationCurrent(
           expectedOwnerID,
-          authorizationSnapshot: authorizationSnapshot)
-      else { return authorizedOwnerChangedResult() }
+          authorizationSnapshot: authorizationSnapshot),
+        isPermissionRequestCurrent(requestGeneration)
+      else { return cancelledPermissionRequestResult(type: type) }
       appState?.checkAccessibilityPermission()
       return permissionRequestResult(
         type: type,
@@ -2219,8 +2284,9 @@ class ChatToolExecutor {
           authorizationSnapshot: authorizationSnapshot),
         isPermissionAuthorizationCurrent(
           expectedOwnerID,
-          authorizationSnapshot: authorizationSnapshot)
-      else { return authorizedOwnerChangedResult() }
+          authorizationSnapshot: authorizationSnapshot),
+        isPermissionRequestCurrent(requestGeneration)
+      else { return cancelledPermissionRequestResult(type: type) }
       let granted = status == noErr
       appState?.hasAutomationPermission = granted
       appState?.automationPermissionError = automationPermissionError(for: status)
@@ -2240,8 +2306,9 @@ class ChatToolExecutor {
       guard
         isPermissionAuthorizationCurrent(
           expectedOwnerID,
-          authorizationSnapshot: authorizationSnapshot)
-      else { return authorizedOwnerChangedResult() }
+          authorizationSnapshot: authorizationSnapshot),
+        isPermissionRequestCurrent(requestGeneration)
+      else { return cancelledPermissionRequestResult(type: type) }
       // Already granted → skip Settings and the drag card entirely (mirrors
       // the notifications/automation cases, which only open when denied).
       if !checkFullDiskAccessDirectly() {
@@ -2256,8 +2323,9 @@ class ChatToolExecutor {
         guard
           isPermissionAuthorizationCurrent(
             expectedOwnerID,
-            authorizationSnapshot: authorizationSnapshot)
-        else { return authorizedOwnerChangedResult() }
+            authorizationSnapshot: authorizationSnapshot),
+          isPermissionRequestCurrent(requestGeneration)
+        else { return cancelledPermissionRequestResult(type: type) }
       }
       let granted = checkFullDiskAccessDirectly()
       appState?.hasFullDiskAccess = granted
@@ -2342,6 +2410,27 @@ class ChatToolExecutor {
       "message": granted ? "\(type) permission granted." : pendingMessage,
       "requires_restart": requiresRestart && !granted,
     ])
+  }
+
+  private static func isPermissionRequestCurrent(_ generation: UInt64) -> Bool {
+    !Task.isCancelled && generation == permissionRequestGeneration
+  }
+
+  private static func cancelledPermissionRequestResult(type: String) -> String {
+    permissionJSON([
+      "ok": false,
+      "permission": type,
+      "status": "cancelled",
+      "message": "Permission request cancelled because onboarding moved on.",
+    ])
+  }
+
+  private static func permissionToolResultWasCancelled(_ result: String) -> Bool {
+    guard
+      let data = result.data(using: .utf8),
+      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    else { return false }
+    return json["status"] as? String == "cancelled"
   }
 
   private static func permissionToolResultGranted(_ result: String) -> Bool {

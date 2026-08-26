@@ -37,6 +37,7 @@ struct OnboardingPermissionStepView: View {
       description: description,
       showsSkip: true,
       onSkip: {
+        ChatToolExecutor.cancelPendingPermissionRequests()
         // Skipping a permission step should also clear the floating drag card.
         PermissionDragGuidance.dismiss()
         onSkip()
